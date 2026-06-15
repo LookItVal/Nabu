@@ -1,7 +1,12 @@
 package main
 
-import "fmt"
+import (
+    "fmt"
+    "github.com/lookitval/nabu/backend/internal/v1"
+)
 
 func main() {
-    fmt.Println("Hello, World!")
+    router := v1.SetupRouter()
+    fmt.Println("Initializing API server on port 8080...")
+    router.Run(":8080")
 }
