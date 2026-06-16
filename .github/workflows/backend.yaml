@@ -1,0 +1,11 @@
+name: Build Nabu Core image and push to GitHub Container Registry
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'core/**' # Only run if files in the core folder change
+  workflow_dispatch: # Allows you to run this manually from the GitHub UI
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}-core
