@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	v1 "github.com/lookitval/nabu/backend/internal/api/v1"
+	v1 "github.com/lookitval/nabu/core/internal/api/v1"
 	"github.com/lookitval/nabu/core/internal/config"
 	"github.com/redis/go-redis/v9"
 )
