@@ -13,7 +13,8 @@ import (
 func TestGetStatus(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	router := SetupRouter()
+	router := gin.Default()
+	RegisterRoutes(router, nil, nil) // passing nil for db and rdb to simulate disconnected state
 
 	w := httptest.NewRecorder()
 	req, err := http.NewRequest(http.MethodGet, "/status", nil)
@@ -23,5 +24,5 @@ func TestGetStatus(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Header().Get("Content-Type"), "application/json")
-	assert.JSONEq(t, "{\"status\":\"ok\"}", w.Body.String())
+	assert.JSONEq(t, "{\"postgres\":\"disconnected\",\"redis\":\"disconnected\",\"status\":\"ok\"}", w.Body.String())
 }
