@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/gin-gonic/gin"
+	"github.com/lookitval/nabu/core/internal/api/middleware/ratelimit"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -20,6 +21,9 @@ func RegisterRoutes(router *gin.Engine, db *sql.DB, rdb *redis.Client) {
 		db:  db,
 		rdb: rdb,
 	}
+
+	// Apply IP-based leaky bucket rate limiting to all v1 routes.
+	router.Use(ratelimit.IPRateLimiter(rdb, ratelimit.DefaultBucketConfig()))
 
 	router.GET("/v1/status", h.getStatus)
 }
