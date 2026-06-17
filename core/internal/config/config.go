@@ -44,9 +44,9 @@ func Load() *Config {
 		PGPort:    uint16(pgPort),
 		PGDB:      os.Getenv("PG_DB"),
 		PGUser:    os.Getenv("PG_USER"),
-		PGPass:    os.Getenv("PG_PASS"),
-		RedisAddr: os.Getenv("REDIS_ADDR"),
-		RedisPass: os.Getenv("REDIS_PASS"),
+		PGPass:    os.Getenv("PG_PASSWORD"),
+		RedisAddr: os.Getenv("REDIS_ADDRESS"),
+		RedisPass: os.Getenv("REDIS_PASSWORD"),
 		RedisDB:   redisDB,
 	}
 }
