@@ -34,7 +34,7 @@ func DefaultBucketConfig() BucketConfig {
 // bucketResult holds the parsed response from the Lua script.
 type bucketResult struct {
 	allowed      bool
-	remaining    int
+	tokens       int
 	capacity     int
 	retryAfterMs int64
 }
@@ -56,10 +56,12 @@ func checkLeakyBucket(ctx context.Context, rdb *redis.Client, ip string, cfg Buc
 		return bucketResult{}, err
 	}
 
+	retryAfterMs := int64(float64(int(result[1])-int(result[2])) / cfg.LeakRatePerSec * 1000)
 	res := bucketResult{
-		allowed:   result[0] == 1,
-		remaining: int(result[1]),
-		capacity:  int(result[2]),
+		allowed:      result[0] == 1,
+		tokens:       int(result[1]),
+		capacity:     int(result[2]),
+		retryAfterMs: retryAfterMs,
 	}
 
 	return res, nil

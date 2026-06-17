@@ -25,12 +25,15 @@ if tokens == nil then
     return {1, tokens, capacity}  -- allowed, remaining, capacity
 end
 
+-- Add a token for the current request
+tokens = tokens + 1
+
 -- Calculate how many tokens have leaked since the last request
 local elapsed_seconds = (now - last_leak) / 1000
 local leaked = math.floor(elapsed_seconds * leak_rate)
 
 if leaked > 0 then
-    tokens    = tokens + leaked
+    tokens    = tokens - leaked
     last_leak = last_leak + math.floor(leaked / leak_rate) * 1000
 end
 
@@ -43,8 +46,7 @@ if tokens > capacity then
     return {0, 0, capacity, math.max(0, ms_until_next)}
 end
 
--- Allow the request, add one token
-tokens = tokens + 1
+-- Allow the request
 redis.call("HMSET", key, "tokens", tokens, "last_leak_ms", last_leak)
 redis.call("PEXPIRE", key, math.ceil(capacity / leak_rate) * 1000 + 1000)
 return {1, tokens, capacity}
