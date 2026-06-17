@@ -1,4 +1,4 @@
-package main
+package postgres
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lookitval/nabu/core/internal/config"
 	"github.com/lookitval/nabu/core/internal/testenv"
 )
 
@@ -43,3 +44,32 @@ func TestMain(m *testing.M) {
 
 	os.Exit(code)
 }
+
+// postgres.Connect
+
+func TestConnect_ReturnsDBOnSuccess(t *testing.T) {
+	db, err := Connect()
+	if err != nil {
+		t.Fatalf("expected Connect to return nil error, got %v", err)
+	}
+	if db == nil {
+		t.Fatal("expected Connect to return a database connection, got nil")
+	}
+}
+
+func TestConnect_ReturnsErrorOnFailure(t *testing.T) {
+	// Temporarily override the configuration to an invalid address
+	originalHost := config.Load().PGHost
+	os.Setenv("PG_HOST", "invalid_host")
+	defer func() { os.Setenv("PG_HOST", originalHost) }()
+
+	db, err := Connect()
+	if err == nil {
+		t.Fatal("expected Connect to return an error for invalid host, got nil")
+	}
+	if db != nil {
+		t.Fatal("expected Connect to return nil database connection for invalid host, got non-nil")
+	}
+}
+
+// postgres.Ping
