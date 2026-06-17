@@ -14,6 +14,7 @@ import (
 // main reads the configuration and initiates connections to external services before starting the server.
 func main() {
 	cfg := config.Load()
+	fmt.Printf("Configuration loaded: %+v\n", cfg)
 
 	db, err := postgres.Connect()
 	if err != nil {

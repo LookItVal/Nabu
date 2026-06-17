@@ -3,7 +3,7 @@ package v1
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/lookitval/nabu/core/internal/database/postgres"
-	redisdb "github.com/lookitval/nabu/core/internal/database/redis"
+	"github.com/lookitval/nabu/core/internal/database/redisdb"
 )
 
 // getStatus is an HTTP handler that checks backend application health.
