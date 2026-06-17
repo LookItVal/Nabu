@@ -36,7 +36,6 @@ tokens = tokens + 1
 
 if tokens > capacity then
     -- Bucket is full, reject without recording the over-capacity token.
-    tokens = capacity
     redis.call("HMSET", key, "tokens", tokens, "last_leak_ms", last_leak)
     redis.call("PEXPIRE", key, math.ceil(capacity / leak_rate) * 1000 + 1000)
     -- Return: denied, current bucket fill, capacity, ms until next token leaks.
