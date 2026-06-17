@@ -41,6 +41,17 @@ func TestStart_ReturnsErrorOnContextDeadlineExceeded(t *testing.T) {
 	}
 }
 
+func TestStart_ReturnsErrorOnCanceledContext(t *testing.T) {
+	resetForTest()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := Start(ctx); err == nil {
+		t.Fatal("expected Start to return error on canceled context, got nil")
+	}
+}
+
 // testenv.Get
 
 func TestGet_ReturnsNilWhenNotStarted(t *testing.T) {

@@ -182,3 +182,14 @@ func TestClose_DoesNotPanicOnUnstartedServer(t *testing.T) {
 
 	srv.Close()
 }
+
+func TestClose_WithNilDependencies_DoesNotPanic(t *testing.T) {
+	srv := &Server{}
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("Close panicked with nil dependencies: %v", r)
+		}
+	}()
+
+	srv.Close()
+}

@@ -13,7 +13,6 @@ import (
 
 // TestMain sets up the test environment using testcontainers before running the tests.
 func TestMain(m *testing.M) {
-	// Start the test environment with PostgreSQL and Redis containers.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	if err := testenv.Start(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to start test environment: %v\n", err)
@@ -21,7 +20,6 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// set environment variables for the application to connect to the test containers
 	if err := testenv.SetEnv(); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to set test environment variables: %v\n", err)
 		cancel()
@@ -32,10 +30,8 @@ func TestMain(m *testing.M) {
 	}
 	cancel()
 
-	// Run the tests
 	code := m.Run()
 
-	// Teardown the test environment after tests complete.
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	if err := testenv.Stop(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to stop test environment: %v\n", err)
@@ -55,10 +51,10 @@ func TestConnect_ReturnsDBOnSuccess(t *testing.T) {
 	if db == nil {
 		t.Fatal("expected Connect to return a database connection, got nil")
 	}
+	defer db.Close()
 }
 
 func TestConnect_ReturnsErrorOnFailure(t *testing.T) {
-	// Temporarily override the configuration to an invalid address
 	originalHost := config.Load().PGHost
 	os.Setenv("PG_HOST", "invalid_host")
 	defer func() { os.Setenv("PG_HOST", originalHost) }()
@@ -73,3 +69,33 @@ func TestConnect_ReturnsErrorOnFailure(t *testing.T) {
 }
 
 // postgres.Ping
+
+func TestPing_ReturnsNegativeOnNilDB(t *testing.T) {
+	if got := Ping(nil); got != -1 {
+		t.Fatalf("expected Ping(nil) to return -1, got %d", got)
+	}
+}
+
+func TestPing_ReturnsLatencyOnSuccess(t *testing.T) {
+	db, err := Connect()
+	if err != nil {
+		t.Fatalf("failed to connect to PostgreSQL: %v", err)
+	}
+	defer db.Close()
+
+	if got := Ping(db); got < 0 {
+		t.Fatalf("expected Ping to return non-negative latency, got %d", got)
+	}
+}
+
+func TestPing_ReturnsNegativeOnClosedDB(t *testing.T) {
+	db, err := Connect()
+	if err != nil {
+		t.Fatalf("failed to connect to PostgreSQL: %v", err)
+	}
+	_ = db.Close()
+
+	if got := Ping(db); got != -1 {
+		t.Fatalf("expected Ping on closed DB to return -1, got %d", got)
+	}
+}
