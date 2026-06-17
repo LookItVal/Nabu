@@ -21,6 +21,5 @@ func RegisterRoutes(router *gin.Engine, db *sql.DB, rdb *redis.Client) {
 		rdb: rdb,
 	}
 
-	router.GET("/status", h.getStatus)
+	router.GET("/v1/status", h.getStatus)
 }
-
