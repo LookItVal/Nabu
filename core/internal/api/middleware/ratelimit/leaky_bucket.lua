@@ -35,12 +35,9 @@ end
 tokens = tokens + 1
 
 if tokens > capacity then
-    -- Bucket is full, reject without recording the over-capacity token.
-    redis.call("HMSET", key, "tokens", tokens, "last_leak_ms", last_leak)
-    redis.call("PEXPIRE", key, math.ceil(capacity / leak_rate) * 1000 + 1000)
-    -- Return: denied, current bucket fill, capacity, ms until next token leaks.
-    local ms_until_next = math.ceil((1 / leak_rate) * 1000) - (now - last_leak)
-    return {0, tokens, capacity, math.max(0, ms_until_next)}
+    -- Bucket overflow: reject the request. Calculate retry time until next token is available.
+    local retry_after_ms = math.ceil((tokens - capacity) / leak_rate * 1000)
+    return {0, tokens, capacity, retry_after_ms}
 end
 
 -- Allow the request and persist the updated bucket fill.

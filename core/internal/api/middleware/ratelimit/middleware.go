@@ -32,7 +32,7 @@ func IPRateLimiter(rdb *redis.Client, cfg BucketConfig) gin.HandlerFunc {
 
 		// Always set informational headers so clients can self-throttle
 		c.Header("X-RateLimit-Limit", fmt.Sprintf("%d", res.capacity))
-		c.Header("X-RateLimit-Remaining", fmt.Sprintf("%d", res.capacity-res.tokens))
+		c.Header("X-RateLimit-Overflow", fmt.Sprintf("%d", res.tokens-res.capacity))
 
 		if !res.allowed {
 			retryAfterSecs := int(math.Ceil(float64(res.retryAfterMs) / 1000))
