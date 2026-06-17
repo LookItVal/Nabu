@@ -16,37 +16,35 @@ local tokens     = tonumber(data[1])
 local last_leak  = tonumber(data[2])
 
 if tokens == nil then
-    -- First request from this IP: start with an empty bucket and set last leak time to now
+    -- First request from this IP: initialize the bucket state at the current time.
+    -- "tokens" represents current bucket fill (used capacity), not remaining capacity.
     tokens    = 0
     last_leak = now
-    redis.call("HMSET", key, "tokens", tokens, "last_leak_ms", last_leak)
-    -- TTL slightly longer than it would take to fully refill, so idle keys expire cleanly
-    redis.call("PEXPIRE", key, math.ceil(capacity / leak_rate) * 1000 + 1000)
-    return {1, tokens, capacity}  -- allowed, remaining, capacity
 end
-
--- Add a token for the current request
-tokens = tokens + 1
 
 -- Calculate how many tokens have leaked since the last request
 local elapsed_seconds = (now - last_leak) / 1000
 local leaked = math.floor(elapsed_seconds * leak_rate)
 
 if leaked > 0 then
-    tokens    = tokens - leaked
-    last_leak = last_leak + math.floor(leaked / leak_rate) * 1000
+    tokens    = math.max(0, tokens - leaked)
+    last_leak = last_leak + math.floor((leaked / leak_rate) * 1000)
 end
+
+-- Add one token for the current request after applying leakage.
+tokens = tokens + 1
 
 if tokens > capacity then
-    -- Bucket is full (no room), reject
+    -- Bucket is full, reject without recording the over-capacity token.
+    tokens = capacity
     redis.call("HMSET", key, "tokens", tokens, "last_leak_ms", last_leak)
     redis.call("PEXPIRE", key, math.ceil(capacity / leak_rate) * 1000 + 1000)
-    -- Return: denied, remaining (0), capacity, ms until next token leaks
+    -- Return: denied, current bucket fill, capacity, ms until next token leaks.
     local ms_until_next = math.ceil((1 / leak_rate) * 1000) - (now - last_leak)
-    return {0, 0, capacity, math.max(0, ms_until_next)}
+    return {0, tokens, capacity, math.max(0, ms_until_next)}
 end
 
--- Allow the request
+-- Allow the request and persist the updated bucket fill.
 redis.call("HMSET", key, "tokens", tokens, "last_leak_ms", last_leak)
 redis.call("PEXPIRE", key, math.ceil(capacity / leak_rate) * 1000 + 1000)
 return {1, tokens, capacity}

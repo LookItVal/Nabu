@@ -56,12 +56,13 @@ func checkLeakyBucket(ctx context.Context, rdb *redis.Client, ip string, cfg Buc
 		return bucketResult{}, err
 	}
 
-	retryAfterMs := int64(float64(int(result[1])-int(result[2])) / cfg.LeakRatePerSec * 1000)
 	res := bucketResult{
-		allowed:      result[0] == 1,
-		tokens:       int(result[1]),
-		capacity:     int(result[2]),
-		retryAfterMs: retryAfterMs,
+		allowed:  result[0] == 1,
+		tokens:   int(result[1]),
+		capacity: int(result[2]),
+	}
+	if !res.allowed && len(result) >= 4 {
+		res.retryAfterMs = result[3]
 	}
 
 	return res, nil
