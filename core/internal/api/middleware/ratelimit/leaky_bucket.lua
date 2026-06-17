@@ -37,6 +37,8 @@ tokens = tokens + 1
 if tokens > capacity then
     -- Bucket overflow: reject the request. Calculate retry time until next token is available.
     local retry_after_ms = math.ceil((tokens - capacity) / leak_rate * 1000)
+    redis.call("HMSET", key, "tokens", tokens, "last_leak_ms", last_leak)
+    redis.call("PEXPIRE", key, math.ceil(tokens / leak_rate) * 1000 + 1000)
     return {0, tokens, capacity, retry_after_ms}
 end
 
