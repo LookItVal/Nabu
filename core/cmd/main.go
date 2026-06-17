@@ -8,7 +8,7 @@ import (
 	"github.com/lookitval/nabu/core/internal/api"
 	"github.com/lookitval/nabu/core/internal/config"
 	"github.com/lookitval/nabu/core/internal/database/postgres"
-	redisdb "github.com/lookitval/nabu/core/internal/database/redis"
+	"github.com/lookitval/nabu/core/internal/database/redisdb"
 )
 
 // main reads the configuration and initiates connections to external services before starting the server.
