@@ -26,6 +26,7 @@ func main() {
 	}
 
 	server := api.NewServer(cfg, db, rdb)
+	defer server.Close()
 
 	if err := server.Run(); err != nil {
 		fmt.Printf("ERROR: API server failed: %v\n", err)

@@ -38,3 +38,13 @@ func (s *Server) Run() error {
 	fmt.Printf("Starting server on port %s", s.cfg.Port)
 	return s.router.Run(":" + s.cfg.Port)
 }
+
+// Close gracefully shuts down the server and releases any open resources such as database connections.
+func (s *Server) Close() {
+	if s.db != nil {
+		s.db.Close()
+	}
+	if s.rdb != nil {
+		s.rdb.Close()
+	}
+}
