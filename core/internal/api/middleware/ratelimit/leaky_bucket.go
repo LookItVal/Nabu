@@ -23,10 +23,10 @@ type BucketConfig struct {
 }
 
 // DefaultBucketConfig returns the standard rate limit configuration:
-// 20-token capacity with a leak rate of 0.5 tokens per second.
+// 10-token capacity with a leak rate of 0.5 tokens per second.
 func DefaultBucketConfig() BucketConfig {
 	return BucketConfig{
-		Capacity:       20,
+		Capacity:       10,
 		LeakRatePerSec: 0.5,
 	}
 }
