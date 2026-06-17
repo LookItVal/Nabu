@@ -24,6 +24,7 @@ func Connect() (*sql.DB, error) {
 		Password:       cfg.PGPass,
 		Database:       cfg.PGDB,
 		ConnectTimeout: 5 * time.Second,
+		SSLMode:        "disable",
 	})
 	if err != nil {
 		return nil, err
