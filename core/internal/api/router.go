@@ -1,5 +1,4 @@
-// Package v1 provides version 1 of the application's HTTP handler endpoints.
-package v1
+package api
 
 import (
 	"database/sql"

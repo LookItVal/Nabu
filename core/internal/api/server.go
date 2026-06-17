@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	v1 "github.com/lookitval/nabu/core/internal/api/v1"
 	"github.com/lookitval/nabu/core/internal/config"
 	"github.com/redis/go-redis/v9"
 )
@@ -32,7 +31,7 @@ func NewServer(cfg *config.Config, db *sql.DB, rdb *redis.Client) *Server {
 		cfg:    cfg,
 	}
 
-	v1.RegisterRoutes(s.router, db, rdb)
+	RegisterRoutes(s.router, db, rdb)
 
 	return s
 }
