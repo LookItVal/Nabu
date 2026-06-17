@@ -61,9 +61,6 @@ func checkLeakyBucket(ctx context.Context, rdb *redis.Client, ip string, cfg Buc
 		remaining: int(result[1]),
 		capacity:  int(result[2]),
 	}
-	if !res.allowed && len(result) >= 4 {
-		res.retryAfterMs = result[3]
-	}
 
 	return res, nil
 }
