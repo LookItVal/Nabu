@@ -17,19 +17,17 @@ func main() {
 
 	db, err := postgres.Connect()
 	if err != nil {
-		fmt.Printf("Failed to initialize postgres: %v\n", err)
-		return
+		fmt.Printf("WARNING: Failed to initialize postgres: %v\n", err)
 	}
 
 	rdb, err := redisdb.Connect()
 	if err != nil {
-		fmt.Printf("Failed to initialize redis: %v\n", err)
-		return
+		fmt.Printf("WARNING: Failed to initialize redis: %v\n", err)
 	}
 
 	server := api.NewServer(cfg, db, rdb)
 
 	if err := server.Run(); err != nil {
-		fmt.Printf("API server failed: %v\n", err)
+		fmt.Printf("ERROR: API server failed: %v\n", err)
 	}
 }
