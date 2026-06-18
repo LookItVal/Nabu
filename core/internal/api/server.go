@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lookitval/nabu/core/internal/config"
+	"github.com/lookitval/nabu/core/internal/database/postgres"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -40,6 +41,17 @@ func NewServer(cfg *config.Config, db *sql.DB, rdb *redis.Client) *Server {
 	}
 
 	RegisterRoutes(s.router, db, rdb)
+
+	if db == nil {
+		return s
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := postgres.ApplyMigrations(ctx, db); err != nil {
+		fmt.Printf("WARNING: Failed to apply database migrations: %v\n", err)
+		s.db = nil
+	}
 
 	return s
 }

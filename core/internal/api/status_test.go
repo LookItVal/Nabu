@@ -22,6 +22,7 @@ func TestStatusHandler_ReturnsOK(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to connect to PostgreSQL: %v", err)
 	}
+	resetMigrationState(t, db)
 	rdb, err := redisdb.Connect()
 	if err != nil {
 		t.Fatalf("failed to connect to Redis: %v", err)
@@ -91,6 +92,7 @@ func TestStatusHandler_ShowsRedisFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to connect to PostgreSQL: %v", err)
 	}
+	resetMigrationState(t, db)
 	svr := NewServer(cfg, db, nil)
 	go svr.Run()
 	defer svr.Close()

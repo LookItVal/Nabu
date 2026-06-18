@@ -57,6 +57,7 @@ func TestNewServer_ReturnsServerInstance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to connect to PostgreSQL: %v", err)
 	}
+	resetMigrationState(t, db)
 	rdb, err := redisdb.Connect()
 	if err != nil {
 		t.Fatalf("failed to connect to Redis: %v", err)
@@ -73,6 +74,7 @@ func TestNewServer_ReturnsServerWithExpectedFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to connect to PostgreSQL: %v", err)
 	}
+	resetMigrationState(t, db)
 	rdb, err := redisdb.Connect()
 	if err != nil {
 		t.Fatalf("failed to connect to Redis: %v", err)
@@ -95,6 +97,66 @@ func TestNewServer_ReturnsServerWithExpectedFields(t *testing.T) {
 	}
 }
 
+func TestNewServer_AppliesMigrationsWithoutError(t *testing.T) {
+	cfg := config.Load()
+	db, err := postgres.Connect()
+	if err != nil {
+		t.Fatalf("failed to connect to PostgreSQL: %v", err)
+	}
+	resetMigrationState(t, db)
+	rdb, err := redisdb.Connect()
+	if err != nil {
+		t.Fatalf("failed to connect to Redis: %v", err)
+	}
+
+	srv := NewServer(cfg, db, rdb)
+	if srv == nil {
+		t.Fatal("expected NewServer to return a server instance, got nil")
+	}
+}
+
+func TestNewServer_ReturnsErrorWhenMigrationsFail(t *testing.T) {
+	cfg := config.Load()
+	db, err := postgres.Connect()
+	if err != nil {
+		t.Fatalf("failed to connect to PostgreSQL: %v", err)
+	}
+	resetMigrationState(t, db)
+	t.Cleanup(func() { resetMigrationState(t, db) })
+	rdb, err := redisdb.Connect()
+	if err != nil {
+		t.Fatalf("failed to connect to Redis: %v", err)
+	}
+
+	// Add a migration table with a bad schema to force a migration failure
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS schema_migrations (id SERIAL PRIMARY KEY, version VARCHAR(255) NOT NULL)`)
+	if err != nil {
+		t.Fatalf("failed to create bad schema_migrations table: %v", err)
+	}
+
+	_, err = db.Exec(`INSERT INTO schema_migrations (version) VALUES ('bad_version')`)
+	if err != nil {
+		t.Fatalf("failed to insert bad migration version: %v", err)
+	}
+
+	srv := NewServer(cfg, db, rdb)
+	if srv == nil {
+		t.Fatal("expected NewServer to return a server instance even when migrations fail, got nil")
+	}
+	if srv.db != nil {
+		t.Error("expected NewServer to return a server with nil db when migrations fail, got non-nil")
+	}
+	if srv.rdb == nil {
+		t.Error("expected NewServer to return a server with initialized Redis client even when migrations fail, got nil")
+	}
+	if srv.cfg == nil {
+		t.Error("expected NewServer to return a server with initialized config even when migrations fail, got nil")
+	}
+	if srv.router == nil {
+		t.Error("expected NewServer to return a server with initialized router even when migrations fail, got nil")
+	}
+}
+
 // api.Server.Run
 
 func TestRun_ReturnsNilOnSuccessfulStart(t *testing.T) {
@@ -103,6 +165,7 @@ func TestRun_ReturnsNilOnSuccessfulStart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to connect to PostgreSQL: %v", err)
 	}
+	resetMigrationState(t, db)
 	rdb, err := redisdb.Connect()
 	if err != nil {
 		t.Fatalf("failed to connect to Redis: %v", err)
@@ -165,6 +228,7 @@ func TestClose_ShutsDownRunningServerAndReturnsNil(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to connect to PostgreSQL: %v", err)
 	}
+	resetMigrationState(t, db)
 	rdb, err := redisdb.Connect()
 	if err != nil {
 		t.Fatalf("failed to connect to Redis: %v", err)
@@ -199,6 +263,7 @@ func TestClose_DoesNotPanicOnUnstartedServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to connect to PostgreSQL: %v", err)
 	}
+	resetMigrationState(t, db)
 	rdb, err := redisdb.Connect()
 	if err != nil {
 		t.Fatalf("failed to connect to Redis: %v", err)
