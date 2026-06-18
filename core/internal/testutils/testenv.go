@@ -1,4 +1,4 @@
-package testenv
+package testutils
 
 import (
 	"context"
@@ -7,9 +7,20 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/moby/moby/api/types/network"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
+
+type testContainer interface {
+	Host(context.Context) (string, error)
+	MappedPort(context.Context, string) (network.Port, error)
+	Terminate(context.Context, ...testcontainers.TerminateOption) error
+}
+
+var startContainer = func(ctx context.Context, image string, opts ...testcontainers.ContainerCustomizer) (testContainer, error) {
+	return testcontainers.Run(ctx, image, opts...)
+}
 
 type Environment struct {
 	RedisAddr string
@@ -21,8 +32,8 @@ type Environment struct {
 	RedisPass string
 	RedisDB   int
 
-	pgContainer    testcontainers.Container
-	redisContainer testcontainers.Container
+	pgContainer    testContainer
+	redisContainer testContainer
 }
 
 var (
@@ -40,7 +51,24 @@ func Start(ctx context.Context) error {
 			"POSTGRES_PASSWORD": "testpass",
 		}
 
-		pgContainer, err := testcontainers.Run(
+		redisContainer, err := startContainer(
+			ctx,
+			"redis:7.4-alpine",
+			testcontainers.WithExposedPorts("6379/tcp"),
+			testcontainers.WithWaitStrategy(
+				wait.ForLog("Ready to accept connections"),
+				wait.ForListeningPort("6379/tcp"),
+			),
+		)
+		if err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				fmt.Println("Start: Redis container startup deadline exceeded")
+			}
+			initErr = fmt.Errorf("failed to start Redis container: %w", err)
+			return
+		}
+
+		pgContainer, err := startContainer(
 			ctx,
 			"postgres:16-alpine",
 			testcontainers.WithExposedPorts("5432/tcp"),
@@ -55,24 +83,7 @@ func Start(ctx context.Context) error {
 				fmt.Println("Start: PostgreSQL container startup deadline exceeded")
 			}
 			initErr = fmt.Errorf("failed to start PostgreSQL container: %w", err)
-			return
-		}
-
-		redisContainer, err := testcontainers.Run(
-			ctx,
-			"redis:7.4-alpine",
-			testcontainers.WithExposedPorts("6379/tcp"),
-			testcontainers.WithWaitStrategy(
-				wait.ForLog("Ready to accept connections"),
-				wait.ForListeningPort("6379/tcp"),
-			),
-		)
-		if err != nil {
-			if ctx.Err() == context.DeadlineExceeded {
-				fmt.Println("Start: Redis container startup deadline exceeded")
-			}
-			initErr = fmt.Errorf("failed to start Redis container: %w", err)
-			_ = pgContainer.Terminate(context.Background())
+			_ = redisContainer.Terminate(context.Background())
 			return
 		}
 
@@ -178,31 +189,14 @@ func SetEnv() error {
 	if instance == nil {
 		return fmt.Errorf("environment not initialized, call Start() first")
 	}
-
-	if err := os.Setenv("PG_HOST", instance.PGHost); err != nil {
-		return fmt.Errorf("failed to set PG_HOST: %w", err)
-	}
-	if err := os.Setenv("PG_PORT", instance.PGPort); err != nil {
-		return fmt.Errorf("failed to set PG_PORT: %w", err)
-	}
-	if err := os.Setenv("PG_DB", instance.PGDB); err != nil {
-		return fmt.Errorf("failed to set PG_DB: %w", err)
-	}
-	if err := os.Setenv("PG_USER", instance.PGUser); err != nil {
-		return fmt.Errorf("failed to set PG_USER: %w", err)
-	}
-	if err := os.Setenv("PG_PASSWORD", instance.PGPass); err != nil {
-		return fmt.Errorf("failed to set PG_PASSWORD: %w", err)
-	}
-	if err := os.Setenv("REDIS_ADDRESS", instance.RedisAddr); err != nil {
-		return fmt.Errorf("failed to set REDIS_ADDRESS: %w", err)
-	}
-	if err := os.Setenv("REDIS_PASSWORD", instance.RedisPass); err != nil {
-		return fmt.Errorf("failed to set REDIS_PASSWORD: %w", err)
-	}
-	if err := os.Setenv("REDIS_DB", strconv.Itoa(instance.RedisDB)); err != nil {
-		return fmt.Errorf("failed to set REDIS_DB: %w", err)
-	}
+	os.Setenv("PG_HOST", instance.PGHost)
+	os.Setenv("PG_PORT", instance.PGPort)
+	os.Setenv("PG_DB", instance.PGDB)
+	os.Setenv("PG_USER", instance.PGUser)
+	os.Setenv("PG_PASSWORD", instance.PGPass)
+	os.Setenv("REDIS_ADDRESS", instance.RedisAddr)
+	os.Setenv("REDIS_PASSWORD", instance.RedisPass)
+	os.Setenv("REDIS_DB", strconv.Itoa(instance.RedisDB))
 
 	return nil
 }

@@ -8,23 +8,23 @@ import (
 	"time"
 
 	"github.com/lookitval/nabu/core/internal/config"
-	"github.com/lookitval/nabu/core/internal/testenv"
+	"github.com/lookitval/nabu/core/internal/testutils"
 )
 
 // TestMain sets up the test environment using testcontainers before running the tests.
 func TestMain(m *testing.M) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	if err := testenv.Start(ctx); err != nil {
+	if err := testutils.Start(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to start test environment: %v\n", err)
 		cancel()
 		os.Exit(1)
 	}
 
-	if err := testenv.SetEnv(); err != nil {
+	if err := testutils.SetEnv(); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to set test environment variables: %v\n", err)
 		cancel()
 		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-		_ = testenv.Stop(ctx)
+		_ = testutils.Stop(ctx)
 		cancel()
 		os.Exit(1)
 	}
@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	if err := testenv.Stop(ctx); err != nil {
+	if err := testutils.Stop(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to stop test environment: %v\n", err)
 	}
 	cancel()
@@ -65,6 +65,20 @@ func TestConnect_ReturnsErrorOnFailure(t *testing.T) {
 	}
 	if db != nil {
 		t.Fatal("expected Connect to return nil database connection for invalid host, got non-nil")
+	}
+}
+
+func TestConnect_ErrorOnInvalidPort(t *testing.T) {
+	originalPort := fmt.Sprintf("%d", config.Load().PGPort)
+	os.Setenv("PG_PORT", "1234567890")
+	defer func() { os.Setenv("PG_PORT", originalPort) }()
+
+	db, err := Connect()
+	if err == nil {
+		t.Fatal("expected Connect to return an error for invalid port, got nil")
+	}
+	if db != nil {
+		t.Fatal("expected Connect to return nil database connection for invalid port, got non-nil")
 	}
 }
 

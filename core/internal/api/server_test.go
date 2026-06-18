@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -10,25 +12,25 @@ import (
 	"github.com/lookitval/nabu/core/internal/config"
 	"github.com/lookitval/nabu/core/internal/database/postgres"
 	"github.com/lookitval/nabu/core/internal/database/redisdb"
-	"github.com/lookitval/nabu/core/internal/testenv"
+	"github.com/lookitval/nabu/core/internal/testutils"
 )
 
 // TestMain sets up the test environment using testcontainers before running the tests.
 func TestMain(m *testing.M) {
 	// Start the test environment with PostgreSQL and Redis containers.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	if err := testenv.Start(ctx); err != nil {
+	if err := testutils.Start(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to start test environment: %v\n", err)
 		cancel()
 		os.Exit(1)
 	}
 
 	// set environment variables for the application to connect to the test containers
-	if err := testenv.SetEnv(); err != nil {
+	if err := testutils.SetEnv(); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to set test environment variables: %v\n", err)
 		cancel()
 		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-		_ = testenv.Stop(ctx)
+		_ = testutils.Stop(ctx)
 		cancel()
 		os.Exit(1)
 	}
@@ -39,7 +41,7 @@ func TestMain(m *testing.M) {
 
 	// Teardown the test environment after tests complete.
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	if err := testenv.Stop(ctx); err != nil {
+	if err := testutils.Stop(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to stop test environment: %v\n", err)
 	}
 	cancel()
@@ -122,6 +124,37 @@ func TestRun_ReturnsNilOnSuccessfulStart(t *testing.T) {
 	}
 }
 
+func TestRun_ReturnsErrorWhenListenAndServeFails(t *testing.T) {
+	original := listenAndServe
+	t.Cleanup(func() { listenAndServe = original })
+
+	expectedErr := errors.New("forced listen failure")
+	listenAndServe = func(_ *http.Server) error {
+		return expectedErr
+	}
+
+	srv := &Server{cfg: &config.Config{Port: "31339"}}
+	err := srv.Run()
+
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected Run to return listen error %v, got %v", expectedErr, err)
+	}
+}
+
+func TestRun_ReturnsNilWhenListenAndServeReturnsErrServerClosed(t *testing.T) {
+	original := listenAndServe
+	t.Cleanup(func() { listenAndServe = original })
+
+	listenAndServe = func(_ *http.Server) error {
+		return http.ErrServerClosed
+	}
+
+	srv := &Server{cfg: &config.Config{Port: "31340"}}
+	if err := srv.Run(); err != nil {
+		t.Fatalf("expected Run to return nil on ErrServerClosed, got %v", err)
+	}
+}
+
 // api.Server.Close
 
 func TestClose_ShutsDownRunningServerAndReturnsNil(t *testing.T) {
@@ -192,4 +225,18 @@ func TestClose_WithNilDependencies_DoesNotPanic(t *testing.T) {
 	}()
 
 	srv.Close()
+}
+
+func TestClose_LogsWarningWhenShutdownFails(t *testing.T) {
+	originalShutdown := shutdownServer
+	t.Cleanup(func() { shutdownServer = originalShutdown })
+
+	shutdownServer = func(_ *http.Server, _ context.Context) error {
+		return errors.New("forced shutdown failure")
+	}
+
+	srv := &Server{httpSrv: &http.Server{}}
+	testutils.CaptureAndWaitForOutput(t, "WARNING: HTTP server shutdown error: forced shutdown failure", 2*time.Second, func() {
+		srv.Close()
+	})
 }

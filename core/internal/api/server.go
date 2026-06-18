@@ -13,6 +13,14 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+var listenAndServe = func(s *http.Server) error {
+	return s.ListenAndServe()
+}
+
+var shutdownServer = func(s *http.Server, ctx context.Context) error {
+	return s.Shutdown(ctx)
+}
+
 // Server aggregates all the dependencies and routes necessary to run the web application.
 type Server struct {
 	router  *gin.Engine
@@ -44,7 +52,7 @@ func (s *Server) Run() error {
 	}
 
 	fmt.Printf("Starting server on port %s\n", s.cfg.Port)
-	if err := s.httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	if err := listenAndServe(s.httpSrv); err != nil && err != http.ErrServerClosed {
 		return err
 	}
 	return nil
@@ -55,7 +63,7 @@ func (s *Server) Close() {
 	if s.httpSrv != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := s.httpSrv.Shutdown(ctx); err != nil {
+		if err := shutdownServer(s.httpSrv, ctx); err != nil {
 			fmt.Printf("WARNING: HTTP server shutdown error: %v\n", err)
 		}
 	}

@@ -17,7 +17,7 @@ import (
 func Connect() (*sql.DB, error) {
 	cfg := config.Load()
 
-	c, err := pq.NewConnectorConfig(pq.Config{
+	c, _ := pq.NewConnectorConfig(pq.Config{
 		Host:           cfg.PGHost,
 		Port:           cfg.PGPort,
 		User:           cfg.PGUser,
@@ -26,13 +26,10 @@ func Connect() (*sql.DB, error) {
 		ConnectTimeout: 5 * time.Second,
 		SSLMode:        "disable",
 	})
-	if err != nil {
-		return nil, err
-	}
 
 	db := sql.OpenDB(c)
 
-	err = db.Ping()
+	err := db.Ping()
 	if err != nil {
 		return nil, err
 	}

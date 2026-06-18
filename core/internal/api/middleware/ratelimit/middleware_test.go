@@ -12,7 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lookitval/nabu/core/internal/database/redisdb"
-	"github.com/lookitval/nabu/core/internal/testenv"
+	"github.com/lookitval/nabu/core/internal/testutils"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -20,16 +20,16 @@ var testRedisClient *redis.Client
 
 func TestMain(m *testing.M) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	if err := testenv.Start(ctx); err != nil {
+	if err := testutils.Start(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to start test environment: %v\n", err)
 		cancel()
 		os.Exit(1)
 	}
-	if err := testenv.SetEnv(); err != nil {
+	if err := testutils.SetEnv(); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to set test environment variables: %v\n", err)
 		cancel()
 		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-		_ = testenv.Stop(ctx)
+		_ = testutils.Stop(ctx)
 		cancel()
 		os.Exit(1)
 	}
@@ -39,7 +39,7 @@ func TestMain(m *testing.M) {
 		fmt.Fprintf(os.Stderr, "failed to connect to Redis: %v\n", err)
 		cancel()
 		ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-		_ = testenv.Stop(ctx)
+		_ = testutils.Stop(ctx)
 		cancel()
 		os.Exit(1)
 	}
@@ -52,7 +52,7 @@ func TestMain(m *testing.M) {
 		_ = testRedisClient.Close()
 	}
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	if err := testenv.Stop(ctx); err != nil {
+	if err := testutils.Stop(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "failed to stop test environment: %v\n", err)
 	}
 	cancel()
