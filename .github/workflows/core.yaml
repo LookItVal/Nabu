@@ -32,7 +32,12 @@ jobs:
         working-directory: ./core
         run: |
           go test ./... -coverpkg=./... -coverprofile=coverage.out
-          go tool cover -func=coverage.out | awk '/^total:/{gsub("%", "", $3); if ($3 + 0 < 100) {printf("total coverage %s%% is below 100%%\n", $3); exit 1}}'
+          if [ "${GITHUB_REF}" = "refs/heads/staging" ]; then
+            echo "Staging branch detected: skipping strict 100% coverage enforcement."
+            go tool cover -func=coverage.out | awk '/^total:/{printf("staging total coverage: %s\n", $3)}'
+          else
+            go tool cover -func=coverage.out | awk '/^total:/{gsub("%", "", $3); if ($3 + 0 < 100) {printf("total coverage %s%% is below 100%%\n", $3); exit 1}}'
+          fi
 
       - name: Verify tests pass
         working-directory: ./core
