@@ -2,7 +2,7 @@ name: Build Nabu Core image and push to GitHub Container Registry
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "staging" ]
     paths:
       - 'core/**' # Only run if files in the core folder change
       - '.github/workflows/core.yaml'
@@ -56,6 +56,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=sha
+            type=raw,value=beta,enable=${{ github.ref == 'refs/heads/staging' }}
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
