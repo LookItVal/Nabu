@@ -5,9 +5,6 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -25,6 +22,9 @@ const (
 
 //go:embed sqlutils/*.sql
 var sqlutilsFS embed.FS
+
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
 
 var (
 	getAppliedMigrationsQuery = mustReadSQLQuery(getAppliedMigrationsQueryFile)
@@ -60,33 +60,21 @@ func ApplyMigrations(ctx context.Context, db *sql.DB) error {
 
 // getMigrations retrieves the list migration files that exist in the migrations directory
 func getMigrations() ([]string, error) {
-	files, err := os.ReadDir("migrations")
+	entries, err := migrationsFS.ReadDir("migrations")
 	if err != nil {
-		fallbackDir := migrationsDir()
-		files, err = os.ReadDir(fallbackDir)
-	}
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read migrations directory: %w", err)
 	}
 
 	var migrations []string
-	for _, file := range files {
-		if !file.IsDir() && strings.HasSuffix(file.Name(), ".sql") {
-			migrations = append(migrations, file.Name())
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+			continue
 		}
+		migrations = append(migrations, entry.Name())
 	}
 
 	sort.Strings(migrations)
 	return migrations, nil
-}
-
-func migrationsDir() string {
-	_, fileName, _, ok := runtime.Caller(0)
-	if !ok {
-		return "migrations"
-	}
-
-	return filepath.Join(filepath.Dir(fileName), "migrations")
 }
 
 // getAppliedMigrations queries the database and retrieves the list migration files that have been applied
@@ -175,11 +163,7 @@ func migrationTableHasExpectedSchema(ctx context.Context, db *sql.DB) (bool, err
 
 // applyMigration reads the SQL from the specified migration file and executes it against the database.
 func applyMigration(ctx context.Context, db *sql.DB, migration string) error {
-	migrationSQLPath := migrationFilePath(migration)
-	migrationSQL, err := os.ReadFile(migrationSQLPath)
-	if err != nil {
-		return fmt.Errorf("read migration file %q: %w", migrationSQLPath, err)
-	}
+	migrationSQL := getMigrationString(migration)
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -202,21 +186,22 @@ func applyMigration(ctx context.Context, db *sql.DB, migration string) error {
 	return nil
 }
 
-func migrationFilePath(migration string) string {
-	localPath := filepath.Join("migrations", migration)
-	if _, err := os.Stat(localPath); err == nil {
-		return localPath
-	}
-
-	return filepath.Join(migrationsDir(), migration)
-}
-
 // mustReadSQLQuery loads an embedded SQL file and panics when it cannot be read.
 // Embedded SQL files are part of the binary, so a missing file is a build-time contract failure.
 func mustReadSQLQuery(filePath string) string {
 	b, err := sqlutilsFS.ReadFile(filePath)
 	if err != nil {
 		panic(fmt.Sprintf("failed to read embedded SQL %q: %v", filePath, err))
+	}
+
+	return string(b)
+}
+
+// getMigrationString returns the full embedded content for a given migration file path.
+func getMigrationString(migration string) string {
+	b, err := migrationsFS.ReadFile(fmt.Sprintf("migrations/%s", migration))
+	if err != nil {
+		panic(fmt.Sprintf("failed to read embedded migration SQL for %q: %v", migration, err))
 	}
 
 	return string(b)

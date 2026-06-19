@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -104,27 +105,24 @@ func createTempMigrationsDir(t *testing.T, files map[string]string) string {
 }
 
 func TestGetMigrations_ReturnsSortedSQLFiles(t *testing.T) {
-	root := createTempMigrationsDir(t, map[string]string{
-		"002_second.sql": "SELECT 2;",
-		"001_first.sql":  "SELECT 1;",
-		"README.txt":     "not a migration",
-	})
-
-	nested := filepath.Join(root, "migrations", "nested")
-	if err := os.MkdirAll(nested, 0o755); err != nil {
-		t.Fatalf("failed to create nested directory: %v", err)
-	}
-
-	withWorkingDir(t, root)
-
 	migrations, err := getMigrations()
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 
-	want := []string{"001_first.sql", "002_second.sql"}
-	if !reflect.DeepEqual(migrations, want) {
-		t.Fatalf("unexpected migrations list: got %#v want %#v", migrations, want)
+	if len(migrations) == 0 {
+		t.Fatal("expected embedded migrations to be discovered, got none")
+	}
+
+	wantFirst := "000001_create_schema_migrations.sql"
+	if migrations[0] != wantFirst {
+		t.Fatalf("expected first migration to be %q, got %q", wantFirst, migrations[0])
+	}
+
+	sorted := append([]string(nil), migrations...)
+	sort.Strings(sorted)
+	if !reflect.DeepEqual(migrations, sorted) {
+		t.Fatalf("expected migrations list to be sorted, got %#v", migrations)
 	}
 }
 
@@ -306,56 +304,42 @@ func TestGetAppliedMigrations_ReturnsErrorWhenDBQueryFails(t *testing.T) {
 }
 
 func TestApplyMigration_ReturnsErrorWhenFileMissing(t *testing.T) {
-	root := createTempMigrationsDir(t, map[string]string{})
-	withWorkingDir(t, root)
-
 	db := mustConnectPostgres(t)
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic when embedded migration file is missing, got none")
+		}
+	}()
 
-	err := applyMigration(context.Background(), db, "000001_missing.sql")
-	if err == nil {
-		t.Fatal("expected file read error, got nil")
-	}
+	_ = applyMigration(context.Background(), db, "000001_missing.sql")
 }
 
-func TestApplyMigration_ReturnsErrorOnInvalidSQL(t *testing.T) {
-	root := createTempMigrationsDir(t, map[string]string{
-		"000001_invalid.sql": "THIS IS NOT SQL;",
-	})
-	withWorkingDir(t, root)
-
+func TestApplyMigration_PanicsWhenMigrationIsNotEmbedded(t *testing.T) {
 	db := mustConnectPostgres(t)
-	resetSchemaMigrationsTable(t, db)
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic when migration is not embedded, got none")
+		}
+	}()
 
-	err := applyMigration(context.Background(), db, "000001_invalid.sql")
-	if err == nil {
-		t.Fatal("expected SQL execution error, got nil")
-	}
+	_ = applyMigration(context.Background(), db, "000001_invalid.sql")
 }
 
 func TestApplyMigration_ReturnsErrorWhenTrackingInsertFails(t *testing.T) {
-	root := createTempMigrationsDir(t, map[string]string{
-		"000001_create_other_table.sql": "CREATE TABLE IF NOT EXISTS tmp_table_for_test (id INT);",
-	})
-	withWorkingDir(t, root)
-
 	db := mustConnectPostgres(t)
 	resetSchemaMigrationsTable(t, db)
-	t.Cleanup(func() {
-		_, _ = db.Exec(`DROP TABLE IF EXISTS tmp_table_for_test`)
-	})
+	if _, err := db.Exec(`CREATE TABLE schema_migrations (id SERIAL PRIMARY KEY, version VARCHAR(255) NOT NULL)`); err != nil {
+		t.Fatalf("failed to create malformed schema_migrations table: %v", err)
+	}
+	t.Cleanup(func() { resetSchemaMigrationsTable(t, db) })
 
-	err := applyMigration(context.Background(), db, "000001_create_other_table.sql")
+	err := applyMigration(context.Background(), db, "000001_create_schema_migrations.sql")
 	if err == nil {
 		t.Fatal("expected tracking insert error, got nil")
 	}
 }
 
 func TestApplyMigration_AppliesSQLAndTracksMigration(t *testing.T) {
-	root := createTempMigrationsDir(t, map[string]string{
-		"000001_create_schema_migrations.sql": "CREATE TABLE IF NOT EXISTS schema_migrations (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW());",
-	})
-	withWorkingDir(t, root)
-
 	db := mustConnectPostgres(t)
 	resetSchemaMigrationsTable(t, db)
 	t.Cleanup(func() { resetSchemaMigrationsTable(t, db) })
@@ -375,11 +359,6 @@ func TestApplyMigration_AppliesSQLAndTracksMigration(t *testing.T) {
 }
 
 func TestApplyMigration_ReturnsErrorWhenBeginTxFails(t *testing.T) {
-	root := createTempMigrationsDir(t, map[string]string{
-		"000001_create_schema_migrations.sql": "CREATE TABLE IF NOT EXISTS schema_migrations (id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW());",
-	})
-	withWorkingDir(t, root)
-
 	db := mustConnectPostgres(t)
 	_ = db.Close()
 
@@ -453,14 +432,11 @@ func TestMustReadSQLQuery_ReturnsEmbeddedSQLContent(t *testing.T) {
 }
 
 func TestApplyMigrations_ReturnsErrorWhenApplyMigrationFails(t *testing.T) {
-	root := createTempMigrationsDir(t, map[string]string{
-		"000001_bad.sql": "THIS IS NOT SQL;",
-	})
-	withWorkingDir(t, root)
-
 	db := mustConnectPostgres(t)
 	resetSchemaMigrationsTable(t, db)
-	createExpectedSchemaMigrationsTable(t, db)
+	if _, err := db.Exec(`CREATE TABLE schema_migrations (id SERIAL PRIMARY KEY, version VARCHAR(255) NOT NULL)`); err != nil {
+		t.Fatalf("failed to create malformed schema_migrations table: %v", err)
+	}
 	t.Cleanup(func() { resetSchemaMigrationsTable(t, db) })
 
 	err := ApplyMigrations(context.Background(), db)
